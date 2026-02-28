@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Frida Sofia | Atelier & Pagos</title>
+    <title>Frida Sofia | Tejidos & Manualidades</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -53,13 +53,9 @@
         const auth = firebase.auth();
         const db = firebase.firestore();
 
-        const CATEGORIES = ["Todos", "Vestidos", "Tops", "Accesorios", "Exclusivos"];
+        const CATEGORIES = ["Todos", "Tejidos", "Manualidades", "Ropa Nueva", "Ropa Usada"];
         const ADMIN_PIN = "2024";
-        
-        // Enlace de Stripe verificado
         const STRIPE_LINK = "https://buy.stripe.com/00weVcchf6UKfGfdMx18c04";
-        
-        // Número de WhatsApp con formato internacional corregido para México (+52 1 + 10 dígitos)
         const WHATSAPP_NUM = "5215648515663"; 
 
         function App() {
@@ -75,7 +71,7 @@
             const [loginPin, setLoginPin] = useState('');
             const [activeCategory, setActiveCategory] = useState('Todos');
             const [showModal, setShowModal] = useState(false);
-            const [formData, setFormData] = useState({ name: '', price: '', category: 'Vestidos', image: '', stock: 1, description: '' });
+            const [formData, setFormData] = useState({ name: '', price: '', category: 'Tejidos', image: '', stock: 1, description: '' });
 
             useEffect(() => {
                 const init = async () => {
@@ -116,22 +112,16 @@
                 setCart(prev => prev.filter((_, i) => i !== index));
             };
 
-            // Función de Pago Stripe - Redirección directa para máxima compatibilidad
             const handleCheckoutStripe = () => {
                 if (cart.length === 0) return;
-                // Usamos location.href para asegurar que no se bloquee como pop-up
                 window.location.href = STRIPE_LINK;
             };
 
-            // Función de WhatsApp - Formato wa.me simplificado
             const handleCheckoutWA = () => {
                 if (cart.length === 0) return;
                 const total = cart.reduce((a,b) => a + b.price, 0);
                 const itemsList = cart.map(i => `- ${i.name}`).join(', ');
-                
                 const message = `Hola Frida Sofia! Quiero comprar: ${itemsList}. Total: $${total.toLocaleString()}. ¿Me das info para el pago?`;
-                
-                // Formato de enlace de WhatsApp más compatible
                 const waUrl = `https://wa.me/${WHATSAPP_NUM}?text=${encodeURIComponent(message)}`;
                 window.location.href = waUrl;
             };
@@ -177,7 +167,7 @@
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                     setShowModal(false);
-                    setFormData({ name: '', price: '', category: 'Vestidos', image: '', stock: 1, description: '' });
+                    setFormData({ name: '', price: '', category: 'Tejidos', image: '', stock: 1, description: '' });
                 } catch (err) { alert("Error al subir el producto"); }
                 finally { setIsProcessing(false); }
             };
@@ -198,7 +188,7 @@
                             <h1 onClick={() => setView('home')} className="font-serif text-2xl italic cursor-pointer tracking-tighter">Frida Sofia</h1>
                         </div>
                         <div className="flex gap-8 items-center">
-                            <button onClick={() => setView('shop')} className="text-[9px] uppercase font-black tracking-widest hidden md:block">Colección</button>
+                            <button onClick={() => setView('shop')} className="text-[9px] uppercase font-black tracking-widest hidden md:block">Catálogo</button>
                             <button onClick={() => setView('cart')} className="relative p-2">
                                 <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><path d="M3 6h18"></path><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
                                 {cart.length > 0 && <span className="absolute top-0 right-0 bg-black text-white text-[7px] w-4 h-4 rounded-full flex items-center justify-center font-bold">{cart.length}</span>}
@@ -208,12 +198,13 @@
 
                     <main className="pt-20">
                         {view === 'home' && (
-                            <section className="relative h-[90vh] flex flex-col items-center justify-center text-center px-6 bg-zinc-950 text-white">
-                                <img src="https://images.unsplash.com/photo-1515886657613-9f3515b0c78f?q=80&w=1000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover opacity-40" />
-                                <div className="relative z-10 space-y-6">
-                                    <span className="text-[10px] uppercase tracking-[0.5em] opacity-60">Atelier de Alta Costura</span>
-                                    <h2 className="text-6xl md:text-9xl font-serif italic tracking-tighter leading-none">Nueva<br/>Estación</h2>
-                                    <button onClick={() => setView('shop')} className="bg-white text-black px-12 py-5 text-[10px] uppercase font-black tracking-[0.4em] hover:bg-zinc-200 transition-colors">Explorar Catálogo</button>
+                            <section className="relative h-[90vh] flex flex-col items-center justify-center text-center px-6 bg-zinc-100 text-[#1a1a1a]">
+                                <img src="https://images.unsplash.com/photo-1618220179428-22790b461013?q=80&w=1000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover opacity-60" />
+                                <div className="relative z-10 space-y-6 max-w-2xl">
+                                    <span className="text-[10px] uppercase tracking-[0.5em] opacity-80 font-bold">Hecho a Mano con Amor</span>
+                                    <h2 className="text-6xl md:text-8xl font-serif italic tracking-tighter leading-none text-black">Tejidos &<br/>Creaciones</h2>
+                                    <p className="font-serif italic text-lg opacity-70">Manualidades, ropa seleccionada y piezas únicas para tu hogar.</p>
+                                    <button onClick={() => setView('shop')} className="bg-black text-white px-12 py-5 text-[10px] uppercase font-black tracking-[0.4em] hover:bg-zinc-800 transition-colors shadow-2xl">Ver Colección</button>
                                 </div>
                             </section>
                         )}
@@ -222,7 +213,7 @@
                             <div className="max-w-7xl mx-auto px-6 py-16">
                                 <div className="flex gap-4 overflow-x-auto pb-12 no-scrollbar">
                                     {CATEGORIES.map(c => (
-                                        <button key={c} onClick={() => setActiveCategory(c)} className={`text-[9px] uppercase font-black tracking-widest px-6 py-2 border transition-all ${activeCategory === c ? 'bg-black text-white border-black' : 'border-zinc-100 text-zinc-400 hover:border-zinc-300'}`}>
+                                        <button key={c} onClick={() => setActiveCategory(c)} className={`text-[9px] uppercase font-black tracking-widest px-6 py-2 border transition-all whitespace-nowrap ${activeCategory === c ? 'bg-black text-white border-black' : 'border-zinc-100 text-zinc-400 hover:border-zinc-300'}`}>
                                             {c}
                                         </button>
                                     ))}
@@ -231,9 +222,9 @@
                                     {products.filter(p => activeCategory === 'Todos' || p.category === activeCategory).map(p => (
                                         <div key={p.id} className="group cursor-pointer">
                                             <div className="aspect-[3/4] bg-zinc-50 mb-5 overflow-hidden relative" onClick={() => addToCart(p)}>
-                                                <img src={p.image} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-700" />
+                                                <img src={p.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
                                                 <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                                                    <button className="w-full bg-white text-black py-3 text-[9px] font-black uppercase tracking-widest shadow-xl">Añadir</button>
+                                                    <button className="w-full bg-white text-black py-3 text-[9px] font-black uppercase tracking-widest shadow-xl">Añadir a Bolsa</button>
                                                 </div>
                                             </div>
                                             <div className="flex justify-between items-baseline">
@@ -248,11 +239,11 @@
 
                         {view === 'cart' && (
                             <div className="max-w-2xl mx-auto px-6 py-20">
-                                <h2 className="text-5xl font-serif italic mb-12 tracking-tighter text-center">Tu Bolsa</h2>
+                                <h2 className="text-5xl font-serif italic mb-12 tracking-tighter text-center">Tu Selección</h2>
                                 {cart.length === 0 ? (
                                     <div className="py-20 text-center border-y border-zinc-50">
-                                        <p className="italic font-serif text-xl text-zinc-300">Tu bolsa está vacía.</p>
-                                        <button onClick={() => setView('shop')} className="mt-8 text-[10px] uppercase font-black border-b border-black pb-1">Ir a comprar</button>
+                                        <p className="italic font-serif text-xl text-zinc-300">Aún no has elegido piezas.</p>
+                                        <button onClick={() => setView('shop')} className="mt-8 text-[10px] uppercase font-black border-b border-black pb-1">Ir a la Tienda</button>
                                     </div>
                                 ) : (
                                     <div className="space-y-8">
@@ -277,11 +268,11 @@
 
                                             <div className="grid grid-cols-1 gap-4">
                                                 <button onClick={handleCheckoutStripe} className="btn-black w-full py-6">
-                                                    Pagar con Tarjeta (Stripe)
+                                                    Pagar con Stripe
                                                 </button>
                                                 
                                                 <button onClick={handleCheckoutWA} className="btn-outline w-full py-6 text-green-700 border-green-200">
-                                                    Finalizar por WhatsApp
+                                                    Preguntar por WhatsApp
                                                 </button>
                                             </div>
                                         </div>
@@ -293,7 +284,7 @@
                         {view === 'login' && (
                             <div className="max-w-xs mx-auto py-32 text-center">
                                 <form onSubmit={handleLogin} className="space-y-8">
-                                    <h3 className="font-serif text-3xl italic tracking-tighter">Administración</h3>
+                                    <h3 className="font-serif text-3xl italic tracking-tighter">Acceso de Dueña</h3>
                                     <input 
                                         type="password" 
                                         className="input-line text-center text-3xl tracking-[0.4em] font-serif" 
@@ -310,10 +301,10 @@
                         {view === 'admin' && isAdmin && (
                             <div className="max-w-6xl mx-auto px-6 py-16">
                                 <div className="flex justify-between items-end mb-16 border-b border-zinc-100 pb-10">
-                                    <h2 className="text-4xl font-serif italic tracking-tighter">Inventario</h2>
+                                    <h2 className="text-4xl font-serif italic tracking-tighter">Control de Inventario</h2>
                                     <div className="flex gap-4">
-                                        <button onClick={() => {setIsAdmin(false); setView('home');}} className="btn-outline px-4 py-2 text-[8px]">Salir</button>
-                                        <button onClick={() => setShowModal(true)} className="btn-black">Nuevo Producto</button>
+                                        <button onClick={() => {setIsAdmin(false); setView('home');}} className="btn-outline px-4 py-2 text-[8px]">Cerrar</button>
+                                        <button onClick={() => setShowModal(true)} className="btn-black">Agregar Pieza</button>
                                     </div>
                                 </div>
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -323,7 +314,7 @@
                                             <div className="flex-grow flex flex-col justify-between">
                                                 <div>
                                                     <p className="font-serif text-xl italic">{p.name}</p>
-                                                    <p className="text-[9px] font-black text-zinc-300 uppercase mt-1">${p.price}</p>
+                                                    <p className="text-[9px] font-black text-zinc-300 uppercase mt-1">${p.price} - {p.category}</p>
                                                 </div>
                                                 <button onClick={() => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products').doc(p.id).delete()} className="text-[8px] uppercase font-black text-red-300 hover:text-red-600">Eliminar</button>
                                             </div>
@@ -349,7 +340,10 @@
                                         {formData.image ? (
                                             <img src={formData.image} className="w-full h-full object-cover" />
                                         ) : (
-                                            <p className="text-[8px] uppercase font-black tracking-[0.3em] opacity-30 text-center">Subir Foto</p>
+                                            <div className="text-center opacity-30">
+                                                <p className="text-[8px] uppercase font-black tracking-[0.3em]">Haga clic para subir</p>
+                                                <p className="text-[7px] mt-2 italic">(Ropa, manualidades, etc)</p>
+                                            </div>
                                         )}
                                     </div>
                                     <input id="fileIn" type="file" className="hidden" accept="image/*" onChange={async e => {
@@ -367,15 +361,15 @@
                                     }} />
                                     
                                     <div className="space-y-6">
-                                        <input placeholder="Nombre" className="input-line text-2xl font-serif italic" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
-                                        <input type="number" placeholder="Precio" className="input-line font-bold" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required />
+                                        <input placeholder="Nombre de la pieza" className="input-line text-2xl font-serif italic" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+                                        <input type="number" placeholder="Precio MXN" className="input-line font-bold" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required />
                                         <select className="input-line text-[10px] uppercase font-black" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
                                             {CATEGORIES.slice(1).map(c => <option key={c} value={c}>{c}</option>)}
                                         </select>
                                     </div>
 
                                     <button disabled={isProcessing || !formData.image} className="btn-black w-full py-6">
-                                        {isProcessing ? 'Guardando...' : 'Guardar'}
+                                        {isProcessing ? 'Guardando...' : 'Publicar'}
                                     </button>
                                 </form>
                             </div>
