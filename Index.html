@@ -322,7 +322,73 @@
                                             <img src={p.image} className="w-20 h-28 object-cover bg-zinc-50" />
                                             <div className="flex-grow flex flex-col justify-between">
                                                 <div>
-                                                         );
+                                                    <p className="font-serif text-xl italic">{p.name}</p>
+                                                    <p className="text-[9px] font-black text-zinc-300 uppercase mt-1">${p.price}</p>
+                                                </div>
+                                                <button onClick={() => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products').doc(p.id).delete()} className="text-[8px] uppercase font-black text-red-300 hover:text-red-600">Eliminar</button>
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            </div>
+                        )}
+                    </main>
+
+                    {showModal && (
+                        <div className="fixed inset-0 z-[100] bg-white flex flex-col p-6 overflow-y-auto">
+                            <div className="max-w-xl mx-auto w-full py-10">
+                                <div className="flex justify-between items-center mb-16">
+                                    <h2 className="font-serif text-4xl italic tracking-tighter">Nueva Pieza</h2>
+                                    <button onClick={() => setShowModal(false)} className="text-4xl font-light">&times;</button>
+                                </div>
+                                <form onSubmit={saveProduct} className="space-y-10">
+                                    <div 
+                                        className="aspect-[4/5] bg-zinc-50 border border-dashed border-zinc-200 flex flex-col items-center justify-center cursor-pointer overflow-hidden group"
+                                        onClick={() => document.getElementById('fileIn').click()}
+                                    >
+                                        {formData.image ? (
+                                            <img src={formData.image} className="w-full h-full object-cover" />
+                                        ) : (
+                                            <p className="text-[8px] uppercase font-black tracking-[0.3em] opacity-30 text-center">Subir Foto</p>
+                                        )}
+                                    </div>
+                                    <input id="fileIn" type="file" className="hidden" accept="image/*" onChange={async e => {
+                                        const file = e.target.files[0];
+                                        if(file) {
+                                            setIsProcessing(true);
+                                            const reader = new FileReader();
+                                            reader.onload = async (ev) => {
+                                                const opt = await optimizeImage(ev.target.result);
+                                                setFormData({...formData, image: opt});
+                                                setIsProcessing(false);
+                                            };
+                                            reader.readAsDataURL(file);
+                                        }
+                                    }} />
+                                    
+                                    <div className="space-y-6">
+                                        <input placeholder="Nombre" className="input-line text-2xl font-serif italic" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
+                                        <input type="number" placeholder="Precio" className="input-line font-bold" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required />
+                                        <select className="input-line text-[10px] uppercase font-black" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
+                                            {CATEGORIES.slice(1).map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+
+                                    <button disabled={isProcessing || !formData.image} className="btn-black w-full py-6">
+                                        {isProcessing ? 'Guardando...' : 'Guardar'}
+                                    </button>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+
+                    {statusMsg && (
+                        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-black text-white px-8 py-4 text-[9px] font-black uppercase tracking-[0.3em] z-[200] shadow-2xl">
+                            {statusMsg}
+                        </div>
+                    )}
+                </div>
+            );
         }
 
         const root = ReactDOM.createRoot(document.getElementById('root'));
