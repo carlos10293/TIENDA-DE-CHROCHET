@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Frida | Art & Heritage</title>
+    
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    <script src="https://cdn.tailwindcss.com"></script>
+    
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
+
+    <link href="https://fonts.googleapis.com/css2?family=Playfair+Display:ital,wght@0,400;0,700&family=Inter:wght@300;400;600&display=swap" rel="stylesheet">
+    
+    <style>
+        body { font-family: 'Inter', sans-serif; background-color: #050505; color: white; margin: 0; }
+        .font-serif { font-family: 'Playfair Display', serif; }
+        .glass { background: rgba(5, 5, 5, 0.9); backdrop-filter: blur(20px); border-bottom: 1px solid rgba(255,255,255,0.05); }
+        .product-card { transition: all 0.5s ease; }
+        .product-card:hover img { transform: scale(1.03); }
+        input::placeholder { color: #444; }
+    </style>
+</head>
+<body>
+    <div id="root"></div>
+
+    <script type="text/babel">
+        const { useState, useEffect } = React;
+
+        const firebaseConfig = {
+            apiKey: "AIzaSyBOE6fMDtoCsJ92oVdY_ZqBuNDW-idyUqc",
+            authDomain: "frida-s-6a626.firebaseapp.com",
+            projectId: "frida-s-6a626",
+            storageBucket: "frida-s-6a626.firebasestorage.app",
+            messagingSenderId: "951753942306",
+            appId: "1:951753942306:web:18c6f4358164b840e1f17b"
+        };
+
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+        const db = firebase.firestore();
+        const auth = firebase.auth();
+        const provider = new firebase.auth.GoogleAuthProvider();
+        const APP_ID = "frida-s-6a626";
+
+        // CONFIGURACIÓN DE ADMIN - REEMPLAZA CON TU EMAIL
+        const ADMIN_EMAILS = ["tu-correo@gmail.com"]; 
+
+        function App() {
+            const [user, setUser] = useState(null);
+            const [isAdmin, setIsAdmin] = useState(false);
+            const [products, setProducts] = useState([]);
+            const [cart, setCart] = useState([]);
+            const [view, setView] = useState('gallery');
+            const [loading, setLoading] = useState(true);
+            const [showAdmin, setShowAdmin] = useState(false);
+            const [form, setForm] = useState({ name: '', price: '', image: '' });
+            const [status, setStatus] = useState(''); // Para mensajes de error/éxito
+
+            useEffect(() => {
+                const unsubAuth = auth.onAuthStateChanged(u => {
+                    setUser(u);
+                    const isAuthAdmin = u && ADMIN_EMAILS.includes(u.email);
+                    setIsAdmin(isAuthAdmin);
+                    setLoading(false);
+                });
+
+                // Carga de productos desde la ruta correcta de Artifacts
+                const unsubData = db.collection('artifacts').doc(APP_ID)
+                    .collection('public').doc('data')
+                    .collection('products')
+                    .orderBy('createdAt', 'desc')
+                    .onSnapshot(snap => {
+                        setProducts(snap.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+                    }, err => {
+                        console.error("Firestore Read Error:", err);
+                        setStatus("Error de conexión con la base de datos.");
+                    });
+
+                return () => { unsubAuth(); unsubData(); };
+            }, []);
+
+            const login = async () => {
+                try {
+                    await auth.signInWithPopup(provider);
+                } catch (e) { setStatus("Error al iniciar sesión: " + e.message); }
+            };
+
+            const logout = () => auth.signOut();
+
+            const handleFile = (e) => {
+                const file = e.target.files[0];
+                if (file && file.size < 1000000) {
+                    const reader = new FileReader();
+                    reader.onloadend = () => setForm({...form, image: reader.result});
+                    reader.readAsDataURL(file);
+                } else {
+                    alert("Imagen muy pesada (máx 1MB)");
+                }
+            };
+
+            const uploadProduct = async (e) => {
+                e.preventDefault();
+                if (!isAdmin) return setStatus("No tienes permisos de escritura.");
+                if (!form.image) return setStatus("Falta la imagen.");
+                
+                setStatus("Subiendo...");
+                try {
+                    await db.collection('artifacts').doc(APP_ID)
+                        .collection('public').doc('data')
+                        .collection('products').add({
+                            name: form.name,
+                            price: Number(form.price),
+                            image: form.image,
+                            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                        });
+                    setForm({ name: '', price: '', image: '' });
+                    setShowAdmin(false);
+                    setStatus("¡Publicado!");
+                    setTimeout(() => setStatus(''), 3000);
+                } catch (e) {
+                    console.error("Upload Error:", e);
+                    setStatus("Error al publicar: Verifica reglas de Firebase.");
+                }
+            };
+
+            const deleteItem = async (id) => {
+                if (!isAdmin) return;
+                if (confirm("¿Eliminar obra?")) {
+                    await db.collection('artifacts').doc(APP_ID)
+                        .collection('public').doc('data')
+                        .collection('products').doc(id).delete();
+                }
+            };
+
+            if (loading) return <div className="h-screen flex items-center justify-center bg-black">Cargando...</div>;
+
+            return (
+                <div className="min-h-screen pb-20">
+                    {/* Header */}
+                    <nav className="fixed top-0 w-full z-50 glass px-8 py-6 flex justify-between items-center">
+                        <div onClick={() => setView('gallery')} className="cursor-pointer">
+                            <h1 className="font-serif text-3xl italic">Frida</h1>
+                        </div>
+                        
+                        <div className="flex items-center gap-8">
+                            <button onClick={() => setView('gallery')} className="text-[10px] uppercase tracking-widest font-bold opacity-60">Galería</button>
+                            <button onClick={() => setView('cart')} className="text-[10px] uppercase tracking-widest font-bold opacity-60">Bolsa ({cart.length})</button>
+                            
+                            {isAdmin && (
+                                <button onClick={() => setShowAdmin(true)} className="bg-white text-black text-[10px] px-4 py-2 font-black rounded uppercase">Gestionar</button>
+                            )}
+
+                            {!user ? (
+                                <button onClick={login} className="border border-white/20 text-[10px] px-4 py-2 rounded uppercase font-bold">Login</button>
+                            ) : (
+                                <img src={user.photoURL} onClick={logout} className="w-8 h-8 rounded-full border border-white/10 cursor-pointer" title="Click para salir" />
+                            )}
+                        </div>
+                    </nav>
+
+                    {/* Feedback Status */}
+                    {status && (
+                        <div className="fixed bottom-10 left-10 z-[100] bg-white text-black p-4 text-xs font-bold uppercase tracking-widest shadow-2xl">
+                            {status}
+                        </div>
+                    )}
+
+                    {/* Galería */}
+                    <main className="pt-40 px-8 max-w-7xl mx-auto">
+                        {view === 'gallery' && (
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-12">
+                                {products.map(p => (
+                                    <div key={p.id} className="product-card">
+                                        <div className="aspect-[3/4] bg-neutral-900 mb-6 relative group overflow-hidden">
+                                            <img src={p.image} className="w-full h-full object-cover grayscale group-hover:grayscale-0 transition-all duration-700" />
+                                            <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center p-6">
+                                                <button onClick={() => setCart([...cart, p])} className="w-full bg-white text-black py-4 text-[10px] font-black uppercase">Añadir Selección</button>
+                                            </div>
+                                            {isAdmin && (
+                                                <button onClick={() => deleteItem(p.id)} className="absolute top-4 right-4 bg-red-600 p-2 rounded-full">
+                                                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="3"><path d="M18 6L6 18M6 6l12 12"/></svg>
+                                                </button>
+                                            )}
+                                        </div>
+                                        <div className="flex justify-between items-baseline border-b border-white/10 pb-2">
+                                            <h3 className="font-serif text-xl italic">{p.name}</h3>
+                                            <span className="font-light opacity-60">${p.price}</span>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                        )}
+
+                        {view === 'cart' && (
+                            <div className="max-w-xl mx-auto py-10">
+                                <h2 className="font-serif text-5xl italic mb-10 text-center">Tu Selección</h2>
+                                {cart.map((item, i) => (
+                                    <div key={i} className="flex justify-between py-4 border-b border-white/5">
+                                        <span className="font-serif text-lg">{item.name}</span>
+                                        <span>${item.price}</span>
+                                    </div>
+                                ))}
+                                <div className="mt-10 text-right text-3xl font-serif">Total: ${cart.reduce((s,i) => s+i.price, 0)}</div>
+                                <a href="https://buy.stripe.com/fZu4gy5SR0wmfGfcIt18c07" target="_blank" className="block w-full bg-white text-black text-center py-6 mt-10 text-xs font-black uppercase tracking-widest">Pagar Ahora</a>
+                            </div>
+                        )}
+                    </main>
+
+                    {/* Modal Admin */}
+                    {showAdmin && (
+                        <div className="fixed inset-0 z-[100] bg-black/95 flex items-center justify-center p-6 backdrop-blur-md">
+                            <div className="bg-neutral-900 p-10 w-full max-w-md border border-white/10">
+                                <h3 className="font-serif text-3xl italic mb-8">Nueva Obra</h3>
+                                <form onSubmit={uploadProduct} className="space-y-6">
+                                    <div className="aspect-video bg-black border border-dashed border-white/20 relative flex items-center justify-center overflow-hidden">
+                                        {form.image ? <img src={form.image} className="w-full h-full object-cover" /> : <span className="text-[10px] uppercase opacity-40 font-bold tracking-widest">Subir Imagen</span>}
+                                        <input type="file" className="absolute inset-0 opacity-0 cursor-pointer" onChange={handleFile} />
+                                    </div>
+                                    <input required placeholder="Nombre de la pieza" className="w-full bg-transparent border-b border-white/20 py-2 outline-none" onChange={e => setForm({...form, name: e.target.value})} />
+                                    <input required type="number" placeholder="Precio MXN" className="w-full bg-transparent border-b border-white/20 py-2 outline-none" onChange={e => setForm({...form, price: e.target.value})} />
+                                    <div className="flex gap-4">
+                                        <button type="button" onClick={() => setShowAdmin(false)} className="flex-1 py-4 text-[10px] font-bold border border-white/10 uppercase">Cancelar</button>
+                                        <button type="submit" className="flex-2 bg-white text-black px-10 py-4 text-[10px] font-black uppercase">Publicar</button>
+                                    </div>
+                                </form>
+                            </div>
+                        </div>
+                    )}
+                </div>
+            );
+        }
+
+        const root = ReactDOM.createRoot(document.getElementById('root'));
+        root.render(<App />);
+    </script>
+</body>
+</html>
+
