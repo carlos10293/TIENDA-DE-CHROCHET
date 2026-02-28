@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Frida Sofia | Tejidos & Manualidades</title>
+    <title>Frida Sofia | Gestión & Pagos</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
@@ -21,21 +21,10 @@
             body { @apply bg-white text-[#1a1a1a] antialiased overflow-x-hidden; font-family: 'Montserrat', sans-serif; }
             .font-serif { font-family: 'Cormorant Garamond', serif; }
         }
-        .btn-black {
-            @apply bg-black text-white px-8 py-4 text-[10px] tracking-[0.3em] uppercase font-black 
-                   transition-all duration-300 hover:bg-zinc-800 disabled:opacity-20 flex items-center justify-center gap-2;
-        }
-        .btn-outline {
-            @apply border border-zinc-200 text-black px-8 py-4 text-[10px] tracking-[0.3em] uppercase font-black 
-                   transition-all duration-300 hover:bg-zinc-50 flex items-center justify-center gap-2;
-        }
-        .input-line {
-            @apply border-b border-zinc-200 py-3 w-full text-sm outline-none focus:border-black transition-all bg-transparent rounded-none;
-        }
-        .loader {
-            border-top-color: #000;
-            animation: spinner 0.6s linear infinite;
-        }
+        .btn-black { @apply bg-black text-white px-8 py-4 text-[10px] tracking-[0.3em] uppercase font-black transition-all duration-300 hover:bg-zinc-800 disabled:opacity-50 flex items-center justify-center gap-2; }
+        .btn-outline { @apply border border-zinc-200 text-black px-8 py-4 text-[10px] tracking-[0.3em] uppercase font-black transition-all duration-300 hover:bg-zinc-50 flex items-center justify-center gap-2; }
+        .input-line { @apply border-b border-zinc-200 py-3 w-full text-sm outline-none focus:border-black transition-all bg-transparent rounded-none; }
+        .loader { border-top-color: #000; animation: spinner 0.6s linear infinite; }
         @keyframes spinner { to { transform: rotate(360deg); } }
         .no-scrollbar::-webkit-scrollbar { display: none; }
     </style>
@@ -46,8 +35,16 @@
     <script type="text/babel">
         const { useState, useEffect } = React;
 
-        const firebaseConfig = JSON.parse(__firebase_config);
-        const appId = typeof __app_id !== 'undefined' ? __app_id : 'frida-boutique-v2';
+        // TU CONFIGURACIÓN REAL
+        const firebaseConfig = {
+            apiKey: "AIzaSyBOE6fMDtoCsJ92oVdY_ZqBuNDW-idyUqc",
+            authDomain: "frida-s-6a626.firebaseapp.com",
+            projectId: "frida-s-6a626",
+            storageBucket: "frida-s-6a626.firebasestorage.app",
+            messagingSenderId: "951753942306",
+            appId: "1:951753942306:web:823632f6855f4a07e1f17b",
+            measurementId: "G-RJFR93LNCL"
+        };
 
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const auth = firebase.auth();
@@ -74,74 +71,63 @@
             const [formData, setFormData] = useState({ name: '', price: '', category: 'Tejidos', image: '', stock: 1, description: '' });
 
             useEffect(() => {
-                const init = async () => {
-                    try {
-                        if (typeof __initial_auth_token !== 'undefined' && __initial_auth_token) {
-                            await auth.signInWithCustomToken(__initial_auth_token);
-                        } else {
-                            await auth.signInAnonymously();
-                        }
-                    } catch (e) { console.error(e); }
-                };
-                init();
+                auth.signInAnonymously().catch(e => console.error("Error Auth:", e));
                 const unsub = auth.onAuthStateChanged((u) => {
                     setUser(u);
-                    if (sessionStorage.getItem('fridaAdmin') === 'true') setIsAdmin(true);
+                    if (localStorage.getItem('fridaAdmin') === 'true') setIsAdmin(true);
                 });
                 return () => unsub();
             }, []);
 
             useEffect(() => {
-                if (!user) return;
-                const unsub = db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products')
+                // Ruta simplificada para asegurar que guarde correctamente
+                const unsub = db.collection('products').orderBy('createdAt', 'desc')
                     .onSnapshot((snap) => {
                         const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                         setProducts(data);
                         setLoading(false);
-                    }, (err) => console.error(err));
+                    }, (err) => {
+                        console.error("Error Firestore:", err);
+                        setLoading(false);
+                    });
                 return () => unsub();
             }, [user]);
 
-            const addToCart = (product) => {
-                setCart(prev => [...prev, product]);
-                setStatusMsg("Añadido a la bolsa");
-                setTimeout(() => setStatusMsg(null), 1500);
-            };
-
-            const removeFromCart = (index) => {
-                setCart(prev => prev.filter((_, i) => i !== index));
-            };
-
-            const handleCheckoutStripe = () => {
-                if (cart.length === 0) return;
-                window.location.href = STRIPE_LINK;
-            };
-
-            const handleCheckoutWA = () => {
-                if (cart.length === 0) return;
-                const total = cart.reduce((a,b) => a + b.price, 0);
-                const itemsList = cart.map(i => `- ${i.name}`).join(', ');
-                const message = `Hola Frida Sofia! Quiero comprar: ${itemsList}. Total: $${total.toLocaleString()}. ¿Me das info para el pago?`;
-                const waUrl = `https://wa.me/${WHATSAPP_NUM}?text=${encodeURIComponent(message)}`;
-                window.location.href = waUrl;
-            };
-
-            const handleLogin = (e) => {
+            const saveProduct = async (e) => {
                 e.preventDefault();
-                if (loginPin === ADMIN_PIN) {
-                    setIsAdmin(true);
-                    sessionStorage.setItem('fridaAdmin', 'true');
-                    setView('admin');
-                } else {
-                    alert("PIN Incorrecto");
-                }
-                setLoginPin('');
+                if (isProcessing) return;
+                setIsProcessing(true);
+                try {
+                    await db.collection('products').add({
+                        ...formData,
+                        price: Number(formData.price),
+                        stock: Number(formData.stock),
+                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
+                    });
+                    setShowModal(false);
+                    setFormData({ name: '', price: '', category: 'Tejidos', image: '', stock: 1, description: '' });
+                    setStatusMsg("Guardado con éxito");
+                    setTimeout(() => setStatusMsg(null), 2000);
+                } catch (err) { alert("Error al guardar"); }
+                finally { setIsProcessing(false); }
             };
 
-            const optimizeImage = (base64) => {
-                return new Promise((resolve) => {
+            const deleteProduct = async (id) => {
+                if (!confirm("¿Eliminar este producto?")) return;
+                try {
+                    await db.collection('products').doc(id).delete();
+                    setStatusMsg("Eliminado");
+                    setTimeout(() => setStatusMsg(null), 2000);
+                } catch (err) { alert("No se pudo eliminar"); }
+            };
+
+            const handleImageUpload = (e) => {
+                const file = e.target.files[0];
+                if (!file) return;
+                const reader = new FileReader();
+                reader.onload = (ev) => {
                     const img = new Image();
-                    img.src = base64;
+                    img.src = ev.target.result;
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
                         const MAX_WIDTH = 600;
@@ -150,235 +136,94 @@
                         canvas.height = img.height * scale;
                         const ctx = canvas.getContext('2d');
                         ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        resolve(canvas.toDataURL('image/jpeg', 0.5));
+                        setFormData(prev => ({ ...prev, image: canvas.toDataURL('image/jpeg', 0.6) }));
                     };
-                });
+                };
+                reader.readAsDataURL(file);
             };
 
-            const saveProduct = async (e) => {
-                e.preventDefault();
-                if (!user || isProcessing) return;
-                setIsProcessing(true);
-                try {
-                    await db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products').add({
-                        ...formData,
-                        price: Number(formData.price),
-                        stock: Number(formData.stock),
-                        createdAt: firebase.firestore.FieldValue.serverTimestamp()
-                    });
-                    setShowModal(false);
-                    setFormData({ name: '', price: '', category: 'Tejidos', image: '', stock: 1, description: '' });
-                } catch (err) { alert("Error al subir el producto"); }
-                finally { setIsProcessing(false); }
-            };
-
-            if (loading) return (
-                <div className="h-screen flex items-center justify-center bg-white">
-                    <div className="w-8 h-8 loader border-2 border-zinc-100 rounded-full"></div>
-                </div>
-            );
+            if (loading) return <div className="h-screen flex items-center justify-center"><div className="w-8 h-8 loader border-2 border-zinc-100 rounded-full"></div></div>;
 
             return (
-                <div className="min-h-screen">
+                <div className="min-h-screen flex flex-col">
                     <nav className="fixed top-0 w-full z-50 bg-white/90 backdrop-blur-md border-b border-zinc-50 px-6 h-20 flex justify-between items-center">
                         <div className="flex items-center gap-4">
-                            <button onClick={() => isAdmin ? setView('admin') : setView('login')} className="opacity-10 hover:opacity-100 transition-opacity">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect><path d="M7 11V7a5 5 0 0 1 10 0v4"></path></svg>
-                            </button>
-                            <h1 onClick={() => setView('home')} className="font-serif text-2xl italic cursor-pointer tracking-tighter">Frida Sofia</h1>
+                            <button onClick={() => isAdmin ? setView('admin') : setView('login')} className="opacity-20 hover:opacity-100 p-2">⚙️</button>
+                            <h1 onClick={() => setView('home')} className="font-serif text-3xl italic cursor-pointer">Frida Sofia</h1>
                         </div>
-                        <div className="flex gap-8 items-center">
-                            <button onClick={() => setView('shop')} className="text-[9px] uppercase font-black tracking-widest hidden md:block">Catálogo</button>
-                            <button onClick={() => setView('cart')} className="relative p-2">
-                                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.2"><path d="M6 2 3 6v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2V6l-3-4Z"></path><path d="M3 6h18"></path><path d="M16 10a4 4 0 0 1-8 0"></path></svg>
-                                {cart.length > 0 && <span className="absolute top-0 right-0 bg-black text-white text-[7px] w-4 h-4 rounded-full flex items-center justify-center font-bold">{cart.length}</span>}
+                        <div className="flex gap-4">
+                            <button onClick={() => setView('shop')} className="text-[10px] uppercase font-black tracking-widest">Tienda</button>
+                            <button onClick={() => setView('cart')} className="relative">
+                                🛒 {cart.length > 0 && <span className="absolute -top-2 -right-2 bg-black text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center">{cart.length}</span>}
                             </button>
                         </div>
                     </nav>
 
-                    <main className="pt-20">
+                    {statusMsg && <div className="fixed top-24 right-6 z-[60] bg-black text-white text-[10px] px-6 py-3">{statusMsg}</div>}
+
+                    <main className="pt-20 flex-grow">
                         {view === 'home' && (
-                            <section className="relative h-[90vh] flex flex-col items-center justify-center text-center px-6 bg-zinc-100 text-[#1a1a1a]">
-                                <img src="https://images.unsplash.com/photo-1618220179428-22790b461013?q=80&w=1000&auto=format&fit=crop" className="absolute inset-0 w-full h-full object-cover opacity-60" />
-                                <div className="relative z-10 space-y-6 max-w-2xl">
-                                    <span className="text-[10px] uppercase tracking-[0.5em] opacity-80 font-bold">Hecho a Mano con Amor</span>
-                                    <h2 className="text-6xl md:text-8xl font-serif italic tracking-tighter leading-none text-black">Tejidos &<br/>Creaciones</h2>
-                                    <p className="font-serif italic text-lg opacity-70">Manualidades, ropa seleccionada y piezas únicas para tu hogar.</p>
-                                    <button onClick={() => setView('shop')} className="bg-black text-white px-12 py-5 text-[10px] uppercase font-black tracking-[0.4em] hover:bg-zinc-800 transition-colors shadow-2xl">Ver Colección</button>
-                                </div>
+                            <section className="h-[85vh] flex flex-col items-center justify-center text-center px-6 bg-zinc-50">
+                                <h2 className="text-7xl font-serif italic mb-8">Colección Frida</h2>
+                                <button onClick={() => setView('shop')} className="btn-black">Explorar Catálogo</button>
                             </section>
                         )}
 
                         {view === 'shop' && (
                             <div className="max-w-7xl mx-auto px-6 py-16">
-                                <div className="flex gap-4 overflow-x-auto pb-12 no-scrollbar">
-                                    {CATEGORIES.map(c => (
-                                        <button key={c} onClick={() => setActiveCategory(c)} className={`text-[9px] uppercase font-black tracking-widest px-6 py-2 border transition-all whitespace-nowrap ${activeCategory === c ? 'bg-black text-white border-black' : 'border-zinc-100 text-zinc-400 hover:border-zinc-300'}`}>
-                                            {c}
-                                        </button>
-                                    ))}
-                                </div>
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-x-6 gap-y-12">
-                                    {products.filter(p => activeCategory === 'Todos' || p.category === activeCategory).map(p => (
-                                        <div key={p.id} className="group cursor-pointer">
-                                            <div className="aspect-[3/4] bg-zinc-50 mb-5 overflow-hidden relative" onClick={() => addToCart(p)}>
-                                                <img src={p.image} className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-700" />
-                                                <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-4">
-                                                    <button className="w-full bg-white text-black py-3 text-[9px] font-black uppercase tracking-widest shadow-xl">Añadir a Bolsa</button>
-                                                </div>
-                                            </div>
-                                            <div className="flex justify-between items-baseline">
-                                                <h4 className="font-serif text-xl italic tracking-tight">{p.name}</h4>
-                                                <span className="text-[11px] font-light text-zinc-400">${p.price.toLocaleString()}</span>
-                                            </div>
+                                <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
+                                    {products.map(p => (
+                                        <div key={p.id} className="group" onClick={() => {setCart([...cart, p]); setStatusMsg("Agregado"); setTimeout(()=>setStatusMsg(null),1000)}}>
+                                            <img src={p.image} className="aspect-[3/4] object-cover mb-4" />
+                                            <h4 className="font-serif text-xl italic">{p.name}</h4>
+                                            <p className="font-bold">${p.price}</p>
                                         </div>
                                     ))}
                                 </div>
-                            </div>
-                        )}
-
-                        {view === 'cart' && (
-                            <div className="max-w-2xl mx-auto px-6 py-20">
-                                <h2 className="text-5xl font-serif italic mb-12 tracking-tighter text-center">Tu Selección</h2>
-                                {cart.length === 0 ? (
-                                    <div className="py-20 text-center border-y border-zinc-50">
-                                        <p className="italic font-serif text-xl text-zinc-300">Aún no has elegido piezas.</p>
-                                        <button onClick={() => setView('shop')} className="mt-8 text-[10px] uppercase font-black border-b border-black pb-1">Ir a la Tienda</button>
-                                    </div>
-                                ) : (
-                                    <div className="space-y-8">
-                                        {cart.map((item, i) => (
-                                            <div key={i} className="flex gap-6 items-center border-b border-zinc-50 pb-8">
-                                                <img src={item.image} className="w-20 h-24 object-cover" />
-                                                <div className="flex-grow">
-                                                    <div className="flex justify-between">
-                                                        <h4 className="font-serif text-xl italic">{item.name}</h4>
-                                                        <button onClick={() => removeFromCart(i)} className="text-zinc-300 hover:text-black">Quitar</button>
-                                                    </div>
-                                                    <p className="text-lg font-serif italic mt-2">${item.price.toLocaleString()}</p>
-                                                </div>
-                                            </div>
-                                        ))}
-                                        
-                                        <div className="pt-10 space-y-10">
-                                            <div className="flex justify-between items-end border-t border-black pt-6">
-                                                <span className="text-[10px] uppercase font-black tracking-widest">Total</span>
-                                                <span className="text-5xl font-serif italic tracking-tighter">${cart.reduce((a,b) => a+b.price, 0).toLocaleString()}</span>
-                                            </div>
-
-                                            <div className="grid grid-cols-1 gap-4">
-                                                <button onClick={handleCheckoutStripe} className="btn-black w-full py-6">
-                                                    Pagar con Stripe
-                                                </button>
-                                                
-                                                <button onClick={handleCheckoutWA} className="btn-outline w-full py-6 text-green-700 border-green-200">
-                                                    Preguntar por WhatsApp
-                                                </button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                )}
-                            </div>
-                        )}
-
-                        {view === 'login' && (
-                            <div className="max-w-xs mx-auto py-32 text-center">
-                                <form onSubmit={handleLogin} className="space-y-8">
-                                    <h3 className="font-serif text-3xl italic tracking-tighter">Acceso de Dueña</h3>
-                                    <input 
-                                        type="password" 
-                                        className="input-line text-center text-3xl tracking-[0.4em] font-serif" 
-                                        value={loginPin} 
-                                        onChange={e => setLoginPin(e.target.value)}
-                                        placeholder="0000"
-                                        autoFocus
-                                    />
-                                    <button className="btn-black w-full py-5">Entrar</button>
-                                </form>
                             </div>
                         )}
 
                         {view === 'admin' && isAdmin && (
-                            <div className="max-w-6xl mx-auto px-6 py-16">
-                                <div className="flex justify-between items-end mb-16 border-b border-zinc-100 pb-10">
-                                    <h2 className="text-4xl font-serif italic tracking-tighter">Control de Inventario</h2>
-                                    <div className="flex gap-4">
-                                        <button onClick={() => {setIsAdmin(false); setView('home');}} className="btn-outline px-4 py-2 text-[8px]">Cerrar</button>
-                                        <button onClick={() => setShowModal(true)} className="btn-black">Agregar Pieza</button>
-                                    </div>
+                            <div className="max-w-7xl mx-auto px-6 py-16">
+                                <div className="flex justify-between mb-12">
+                                    <h2 className="text-4xl font-serif italic">Inventario</h2>
+                                    <button onClick={() => setShowModal(true)} className="btn-black">Nuevo Producto</button>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
                                     {products.map(p => (
-                                        <div key={p.id} className="bg-white p-5 border border-zinc-100 flex gap-5">
-                                            <img src={p.image} className="w-20 h-28 object-cover bg-zinc-50" />
-                                            <div className="flex-grow flex flex-col justify-between">
-                                                <div>
-                                                    <p className="font-serif text-xl italic">{p.name}</p>
-                                                    <p className="text-[9px] font-black text-zinc-300 uppercase mt-1">${p.price} - {p.category}</p>
-                                                </div>
-                                                <button onClick={() => db.collection('artifacts').doc(appId).collection('public').doc('data').collection('products').doc(p.id).delete()} className="text-[8px] uppercase font-black text-red-300 hover:text-red-600">Eliminar</button>
-                                            </div>
+                                        <div key={p.id} className="border p-4">
+                                            <img src={p.image} className="aspect-[3/4] object-cover mb-4" />
+                                            <p className="font-serif italic">{p.name}</p>
+                                            <button onClick={() => deleteProduct(p.id)} className="text-red-500 text-[10px] font-black mt-2">ELIMINAR</button>
                                         </div>
                                     ))}
                                 </div>
+                                <button onClick={() => {setIsAdmin(false); localStorage.removeItem('fridaAdmin'); setView('home')}} className="mt-10 opacity-50">Cerrar Sesión</button>
+                            </div>
+                        )}
+
+                        {view === 'login' && (
+                            <div className="max-w-xs mx-auto py-32">
+                                <form onSubmit={(e) => { e.preventDefault(); if(loginPin === ADMIN_PIN){ setIsAdmin(true); localStorage.setItem('fridaAdmin','true'); setView('admin'); } else { alert("Error"); } }} className="space-y-6">
+                                    <input type="password" placeholder="PIN" className="input-line text-center" onChange={e=>setLoginPin(e.target.value)} />
+                                    <button className="btn-black w-full">Entrar</button>
+                                </form>
                             </div>
                         )}
                     </main>
 
                     {showModal && (
-                        <div className="fixed inset-0 z-[100] bg-white flex flex-col p-6 overflow-y-auto">
-                            <div className="max-w-xl mx-auto w-full py-10">
-                                <div className="flex justify-between items-center mb-16">
-                                    <h2 className="font-serif text-4xl italic tracking-tighter">Nueva Pieza</h2>
-                                    <button onClick={() => setShowModal(false)} className="text-4xl font-light">&times;</button>
-                                </div>
-                                <form onSubmit={saveProduct} className="space-y-10">
-                                    <div 
-                                        className="aspect-[4/5] bg-zinc-50 border border-dashed border-zinc-200 flex flex-col items-center justify-center cursor-pointer overflow-hidden group"
-                                        onClick={() => document.getElementById('fileIn').click()}
-                                    >
-                                        {formData.image ? (
-                                            <img src={formData.image} className="w-full h-full object-cover" />
-                                        ) : (
-                                            <div className="text-center opacity-30">
-                                                <p className="text-[8px] uppercase font-black tracking-[0.3em]">Haga clic para subir</p>
-                                                <p className="text-[7px] mt-2 italic">(Ropa, manualidades, etc)</p>
-                                            </div>
-                                        )}
-                                    </div>
-                                    <input id="fileIn" type="file" className="hidden" accept="image/*" onChange={async e => {
-                                        const file = e.target.files[0];
-                                        if(file) {
-                                            setIsProcessing(true);
-                                            const reader = new FileReader();
-                                            reader.onload = async (ev) => {
-                                                const opt = await optimizeImage(ev.target.result);
-                                                setFormData({...formData, image: opt});
-                                                setIsProcessing(false);
-                                            };
-                                            reader.readAsDataURL(file);
-                                        }
-                                    }} />
-                                    
-                                    <div className="space-y-6">
-                                        <input placeholder="Nombre de la pieza" className="input-line text-2xl font-serif italic" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} required />
-                                        <input type="number" placeholder="Precio MXN" className="input-line font-bold" value={formData.price} onChange={e => setFormData({...formData, price: e.target.value})} required />
-                                        <select className="input-line text-[10px] uppercase font-black" value={formData.category} onChange={e => setFormData({...formData, category: e.target.value})}>
-                                            {CATEGORIES.slice(1).map(c => <option key={c} value={c}>{c}</option>)}
-                                        </select>
-                                    </div>
-
-                                    <button disabled={isProcessing || !formData.image} className="btn-black w-full py-6">
-                                        {isProcessing ? 'Guardando...' : 'Publicar'}
-                                    </button>
+                        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-6">
+                            <div className="bg-white p-10 max-w-lg w-full">
+                                <button onClick={()=>setShowModal(false)} className="float-right">X</button>
+                                <h3 className="text-2xl font-serif italic mb-6">Nuevo Producto</h3>
+                                <form onSubmit={saveProduct} className="space-y-4">
+                                    <input type="file" onChange={handleImageUpload} className="text-xs" required />
+                                    <input placeholder="Nombre" className="input-line" onChange={e=>setFormData({...formData, name: e.target.value})} required />
+                                    <input type="number" placeholder="Precio" className="input-line" onChange={e=>setFormData({...formData, price: e.target.value})} required />
+                                    <button className="btn-black w-full" disabled={isProcessing}>{isProcessing ? 'Guardando...' : 'Publicar'}</button>
                                 </form>
                             </div>
-                        </div>
-                    )}
-
-                    {statusMsg && (
-                        <div className="fixed bottom-10 left-1/2 -translate-x-1/2 bg-black text-white px-8 py-4 text-[9px] font-black uppercase tracking-[0.3em] z-[200] shadow-2xl">
-                            {statusMsg}
                         </div>
                     )}
                 </div>
@@ -390,4 +235,3 @@
     </script>
 </body>
 </html>
-
