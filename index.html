@@ -2,48 +2,49 @@
 <html lang="es">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Frida Sofia | Gestión & Pagos</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Frida Sofia | Boutique & Handmade</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
     <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
 
+    <!-- Firebase v9 compat -->
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-auth-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-firestore-compat.js"></script>
 
-    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,400&family=Montserrat:wght@100;300;600&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,600;1,400&family=Montserrat:wght@200;400;600&display=swap" rel="stylesheet">
 
     <style type="text/tailwindcss">
         @layer base {
             body { @apply bg-white text-[#1a1a1a] antialiased overflow-x-hidden; font-family: 'Montserrat', sans-serif; }
             .font-serif { font-family: 'Cormorant Garamond', serif; }
         }
-        .btn-black { @apply bg-black text-white px-8 py-4 text-[10px] tracking-[0.3em] uppercase font-black transition-all duration-300 hover:bg-zinc-800 disabled:opacity-50 flex items-center justify-center gap-2; }
-        .btn-outline { @apply border border-zinc-200 text-black px-8 py-4 text-[10px] tracking-[0.3em] uppercase font-black transition-all duration-300 hover:bg-zinc-50 flex items-center justify-center gap-2; }
+        .btn-black { @apply bg-black text-white px-8 py-4 text-[10px] tracking-[0.3em] uppercase font-bold transition-all duration-300 hover:bg-zinc-800 disabled:opacity-50 flex items-center justify-center gap-2; }
+        .btn-outline { @apply border border-zinc-200 text-black px-8 py-4 text-[10px] tracking-[0.3em] uppercase font-bold transition-all duration-300 hover:bg-zinc-50 flex items-center justify-center gap-2; }
         .input-line { @apply border-b border-zinc-200 py-3 w-full text-sm outline-none focus:border-black transition-all bg-transparent rounded-none; }
-        .loader { border-top-color: #000; animation: spinner 0.6s linear infinite; }
+        .loader { border-top-color: #1a1a1a; animation: spinner 0.6s linear infinite; }
         @keyframes spinner { to { transform: rotate(360deg); } }
-        .no-scrollbar::-webkit-scrollbar { display: none; }
+        .product-card img { transition: transform 0.7s cubic-bezier(0.4, 0, 0.2, 1); }
+        .product-card:hover img { transform: scale(1.05); }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
-        const { useState, useEffect } = React;
+        const { useState, useEffect, useMemo } = React;
 
-        // TU CONFIGURACIÓN REAL
+        // Configuración de Firebase
         const firebaseConfig = {
             apiKey: "AIzaSyBOE6fMDtoCsJ92oVdY_ZqBuNDW-idyUqc",
             authDomain: "frida-s-6a626.firebaseapp.com",
             projectId: "frida-s-6a626",
             storageBucket: "frida-s-6a626.firebasestorage.app",
             messagingSenderId: "951753942306",
-            appId: "1:951753942306:web:823632f6855f4a07e1f17b",
-            measurementId: "G-RJFR93LNCL"
+            appId: "1:951753942306:web:823632f6855f4a07e1f17b"
         };
 
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
@@ -52,7 +53,6 @@
 
         const CATEGORIES = ["Todos", "Tejidos", "Manualidades", "Ropa Nueva", "Ropa Usada"];
         const ADMIN_PIN = "2024";
-        const STRIPE_LINK = "https://buy.stripe.com/00weVcchf6UKfGfdMx18c04";
         const WHATSAPP_NUM = "5215648515663"; 
 
         function App() {
@@ -65,13 +65,13 @@
             const [isProcessing, setIsProcessing] = useState(false);
             const [statusMsg, setStatusMsg] = useState(null);
             
-            const [loginPin, setLoginPin] = useState('');
             const [activeCategory, setActiveCategory] = useState('Todos');
             const [showModal, setShowModal] = useState(false);
-            const [formData, setFormData] = useState({ name: '', price: '', category: 'Tejidos', image: '', stock: 1, description: '' });
+            const [formData, setFormData] = useState({ name: '', price: '', category: 'Tejidos', image: '', description: '' });
 
+            // Auth inicial
             useEffect(() => {
-                auth.signInAnonymously().catch(e => console.error("Error Auth:", e));
+                auth.signInAnonymously().catch(e => console.error("Auth:", e));
                 const unsub = auth.onAuthStateChanged((u) => {
                     setUser(u);
                     if (localStorage.getItem('fridaAdmin') === 'true') setIsAdmin(true);
@@ -79,19 +79,24 @@
                 return () => unsub();
             }, []);
 
+            // Escuchar productos
             useEffect(() => {
-                // Ruta simplificada para asegurar que guarde correctamente
                 const unsub = db.collection('products').orderBy('createdAt', 'desc')
                     .onSnapshot((snap) => {
                         const data = snap.docs.map(d => ({ id: d.id, ...d.data() }));
                         setProducts(data);
                         setLoading(false);
                     }, (err) => {
-                        console.error("Error Firestore:", err);
+                        console.error("Firestore Error:", err);
                         setLoading(false);
                     });
                 return () => unsub();
-            }, [user]);
+            }, []);
+
+            const filteredProducts = useMemo(() => {
+                if (activeCategory === 'Todos') return products;
+                return products.filter(p => p.category === activeCategory);
+            }, [products, activeCategory]);
 
             const saveProduct = async (e) => {
                 e.preventDefault();
@@ -101,27 +106,24 @@
                     await db.collection('products').add({
                         ...formData,
                         price: Number(formData.price),
-                        stock: Number(formData.stock),
                         createdAt: firebase.firestore.FieldValue.serverTimestamp()
                     });
                     setShowModal(false);
-                    setFormData({ name: '', price: '', category: 'Tejidos', image: '', stock: 1, description: '' });
-                    setStatusMsg("Guardado con éxito");
-                    setTimeout(() => setStatusMsg(null), 2000);
+                    setFormData({ name: '', price: '', category: 'Tejidos', image: '', description: '' });
+                    showToast("Producto publicado");
                 } catch (err) { alert("Error al guardar"); }
                 finally { setIsProcessing(false); }
             };
 
             const deleteProduct = async (id) => {
-                if (!confirm("¿Eliminar este producto?")) return;
+                if (!confirm("¿Eliminar este producto permanentemente?")) return;
                 try {
                     await db.collection('products').doc(id).delete();
-                    setStatusMsg("Eliminado");
-                    setTimeout(() => setStatusMsg(null), 2000);
-                } catch (err) { alert("No se pudo eliminar"); }
+                    showToast("Eliminado");
+                } catch (err) { alert("Error"); }
             };
 
-            const handleImageUpload = (e) => {
+            const handleImage = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
@@ -130,98 +132,263 @@
                     img.src = ev.target.result;
                     img.onload = () => {
                         const canvas = document.createElement('canvas');
-                        const MAX_WIDTH = 600;
-                        const scale = MAX_WIDTH / img.width;
-                        canvas.width = MAX_WIDTH;
+                        const MAX_W = 800;
+                        const scale = MAX_W / img.width;
+                        canvas.width = MAX_W;
                         canvas.height = img.height * scale;
-                        const ctx = canvas.getContext('2d');
-                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
-                        setFormData(prev => ({ ...prev, image: canvas.toDataURL('image/jpeg', 0.6) }));
+                        canvas.getContext('2d').drawImage(img, 0, 0, canvas.width, canvas.height);
+                        setFormData(prev => ({ ...prev, image: canvas.toDataURL('image/jpeg', 0.7) }));
                     };
                 };
                 reader.readAsDataURL(file);
             };
 
-            if (loading) return <div className="h-screen flex items-center justify-center"><div className="w-8 h-8 loader border-2 border-zinc-100 rounded-full"></div></div>;
+            const showToast = (msg) => {
+                setStatusMsg(msg);
+                setTimeout(() => setStatusMsg(null), 3000);
+            };
+
+            const addToCart = (p) => {
+                setCart([...cart, p]);
+                showToast("Agregado al carrito");
+            };
+
+            const removeFromCart = (index) => {
+                const newCart = [...cart];
+                newCart.splice(index, 1);
+                setCart(newCart);
+            };
+
+            const checkoutWhatsApp = () => {
+                const total = cart.reduce((sum, item) => sum + item.price, 0);
+                const itemsStr = cart.map(i => `- ${i.name} ($${i.price})`).join('%0A');
+                const text = `Hola Frida Sofia, me interesan estos productos:%0A${itemsStr}%0ATotal: $${total}%0A¿Están disponibles?`;
+                window.open(`https://wa.me/${WHATSAPP_NUM}?text=${text}`, '_blank');
+            };
+
+            if (loading) return (
+                <div className="h-screen flex flex-col items-center justify-center gap-4">
+                    <div className="w-12 h-12 loader border-2 border-zinc-100 rounded-full"></div>
+                    <span className="text-[10px] tracking-widest uppercase opacity-40">Cargando Colección</span>
+                </div>
+            );
 
             return (
-                <div className="min-h-screen flex flex-col">
-                    <nav className="fixed top-0 w-full z-50 bg-white/90 backdrop-blur-md border-b border-zinc-50 px-6 h-20 flex justify-between items-center">
-                        <div className="flex items-center gap-4">
-                            <button onClick={() => isAdmin ? setView('admin') : setView('login')} className="opacity-20 hover:opacity-100 p-2">⚙️</button>
-                            <h1 onClick={() => setView('home')} className="font-serif text-3xl italic cursor-pointer">Frida Sofia</h1>
+                <div className="min-h-screen flex flex-col pt-20">
+                    {/* Navegación */}
+                    <nav className="fixed top-0 w-full z-[100] bg-white/80 backdrop-blur-xl border-b border-zinc-50 px-6 md:px-12 h-20 flex justify-between items-center">
+                        <div className="flex items-center gap-6">
+                            <button onClick={() => isAdmin ? setView('admin') : setView('login')} className="opacity-10 hover:opacity-100 transition-opacity">
+                                <i className="fa-solid fa-gear"></i>
+                            </button>
+                            <h1 onClick={() => setView('home')} className="font-serif text-2xl md:text-3xl italic cursor-pointer tracking-tighter">Frida Sofia</h1>
                         </div>
-                        <div className="flex gap-4">
-                            <button onClick={() => setView('shop')} className="text-[10px] uppercase font-black tracking-widest">Tienda</button>
-                            <button onClick={() => setView('cart')} className="relative">
-                                🛒 {cart.length > 0 && <span className="absolute -top-2 -right-2 bg-black text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center">{cart.length}</span>}
+                        
+                        <div className="flex items-center gap-8">
+                            <button onClick={() => setView('shop')} className="hidden md:block text-[10px] uppercase font-bold tracking-[0.2em] hover:text-zinc-400 transition-colors">Catálogo</button>
+                            <button onClick={() => setView('cart')} className="relative flex items-center gap-2 group">
+                                <span className="text-[10px] uppercase font-bold tracking-[0.2em] hidden md:block group-hover:text-zinc-400">Bolsa</span>
+                                <div className="relative">
+                                    <i className="fa-solid fa-bag-shopping text-lg"></i>
+                                    {cart.length > 0 && (
+                                        <span className="absolute -top-2 -right-2 bg-black text-white text-[8px] w-4 h-4 rounded-full flex items-center justify-center font-bold">
+                                            {cart.length}
+                                        </span>
+                                    )}
+                                </div>
                             </button>
                         </div>
                     </nav>
 
-                    {statusMsg && <div className="fixed top-24 right-6 z-[60] bg-black text-white text-[10px] px-6 py-3">{statusMsg}</div>}
+                    {/* Notificaciones */}
+                    {statusMsg && (
+                        <div className="fixed top-24 right-6 z-[200] bg-black text-white text-[10px] tracking-widest uppercase px-8 py-4 shadow-2xl animate-bounce">
+                            {statusMsg}
+                        </div>
+                    )}
 
-                    <main className="pt-20 flex-grow">
+                    {/* Vistas */}
+                    <main className="flex-grow">
                         {view === 'home' && (
-                            <section className="h-[85vh] flex flex-col items-center justify-center text-center px-6 bg-zinc-50">
-                                <h2 className="text-7xl font-serif italic mb-8">Colección Frida</h2>
-                                <button onClick={() => setView('shop')} className="btn-black">Explorar Catálogo</button>
+                            <section className="h-[90vh] flex flex-col items-center justify-center text-center px-6 relative overflow-hidden bg-zinc-50">
+                                <div className="z-10">
+                                    <span className="text-[10px] tracking-[0.4em] uppercase opacity-40 mb-4 block">Handmade with love</span>
+                                    <h2 className="text-6xl md:text-9xl font-serif italic mb-10 leading-tight">Frida <br/> Collection</h2>
+                                    <button onClick={() => setView('shop')} className="btn-black mx-auto">Ver Catálogo</button>
+                                </div>
+                                <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-[15rem] md:text-[25rem] font-serif italic opacity-[0.02] select-none">Sofia</div>
                             </section>
                         )}
 
                         {view === 'shop' && (
-                            <div className="max-w-7xl mx-auto px-6 py-16">
-                                <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
-                                    {products.map(p => (
-                                        <div key={p.id} className="group" onClick={() => {setCart([...cart, p]); setStatusMsg("Agregado"); setTimeout(()=>setStatusMsg(null),1000)}}>
-                                            <img src={p.image} className="aspect-[3/4] object-cover mb-4" />
-                                            <h4 className="font-serif text-xl italic">{p.name}</h4>
-                                            <p className="font-bold">${p.price}</p>
-                                        </div>
+                            <div className="max-w-7xl mx-auto px-6 py-12 md:py-20">
+                                <div className="flex overflow-x-auto no-scrollbar gap-8 mb-16 pb-4 border-b border-zinc-50">
+                                    {CATEGORIES.map(cat => (
+                                        <button 
+                                            key={cat} 
+                                            onClick={() => setActiveCategory(cat)}
+                                            className={`text-[10px] uppercase tracking-[0.2em] whitespace-nowrap pb-2 transition-all ${activeCategory === cat ? 'font-black border-b-2 border-black' : 'opacity-40 hover:opacity-100'}`}
+                                        >
+                                            {cat}
+                                        </button>
                                     ))}
                                 </div>
+
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-x-8 gap-y-16">
+                                    {filteredProducts.length > 0 ? filteredProducts.map(p => (
+                                        <div key={p.id} className="product-card cursor-pointer group flex flex-col" onClick={() => addToCart(p)}>
+                                            <div className="aspect-[3/4] overflow-hidden bg-zinc-100 mb-6 relative">
+                                                <img src={p.image} className="w-full h-full object-cover" loading="lazy" />
+                                                <div className="absolute inset-0 bg-black/5 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                                                    <span className="bg-white px-6 py-3 text-[9px] uppercase font-bold tracking-widest shadow-xl">Añadir</span>
+                                                </div>
+                                            </div>
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h4 className="font-serif text-xl italic leading-tight mb-1">{p.name}</h4>
+                                                    <p className="text-[10px] uppercase tracking-widest opacity-40">{p.category}</p>
+                                                </div>
+                                                <p className="font-bold text-sm">${p.price}</p>
+                                            </div>
+                                        </div>
+                                    )) : (
+                                        <div className="col-span-full py-20 text-center opacity-30 italic font-serif text-2xl">Próximamente más piezas...</div>
+                                    )}
+                                </div>
+                            </div>
+                        )}
+
+                        {view === 'cart' && (
+                            <div className="max-w-2xl mx-auto px-6 py-20">
+                                <h2 className="text-4xl font-serif italic mb-12 border-b pb-6">Tu Bolsa</h2>
+                                {cart.length > 0 ? (
+                                    <div className="space-y-8">
+                                        {cart.map((item, idx) => (
+                                            <div key={idx} className="flex gap-6 items-center animate-fade-in">
+                                                <img src={item.image} className="w-20 h-28 object-cover bg-zinc-100" />
+                                                <div className="flex-grow">
+                                                    <h4 className="font-serif text-lg italic">{item.name}</h4>
+                                                    <p className="text-sm font-bold">${item.price}</p>
+                                                </div>
+                                                <button onClick={() => removeFromCart(idx)} className="opacity-20 hover:opacity-100 p-2">
+                                                    <i className="fa-solid fa-xmark"></i>
+                                                </button>
+                                            </div>
+                                        ))}
+                                        <div className="pt-10 border-t mt-10">
+                                            <div className="flex justify-between items-center mb-8">
+                                                <span className="text-[10px] uppercase tracking-[0.3em] font-bold">Total estimado</span>
+                                                <span className="text-2xl font-serif italic">${cart.reduce((s,i)=>s+i.price,0)}</span>
+                                            </div>
+                                            <div className="grid gap-4">
+                                                <button onClick={checkoutWhatsApp} className="btn-black">
+                                                    <i className="fa-brands fa-whatsapp text-lg"></i> Comprar vía WhatsApp
+                                                </button>
+                                                <button onClick={() => setView('shop')} className="btn-outline">Seguir comprando</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-20">
+                                        <p className="font-serif italic text-2xl opacity-30 mb-8">Tu bolsa está vacía</p>
+                                        <button onClick={() => setView('shop')} className="btn-black mx-auto">Ver Catálogo</button>
+                                    </div>
+                                )}
                             </div>
                         )}
 
                         {view === 'admin' && isAdmin && (
-                            <div className="max-w-7xl mx-auto px-6 py-16">
-                                <div className="flex justify-between mb-12">
-                                    <h2 className="text-4xl font-serif italic">Inventario</h2>
+                            <div className="max-w-7xl mx-auto px-6 py-12 md:py-20">
+                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center gap-6 mb-16">
+                                    <div>
+                                        <h2 className="text-4xl font-serif italic">Inventario</h2>
+                                        <p className="text-[10px] uppercase tracking-widest opacity-40">Panel de Control</p>
+                                    </div>
                                     <button onClick={() => setShowModal(true)} className="btn-black">Nuevo Producto</button>
                                 </div>
-                                <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
+                                
+                                <div className="grid grid-cols-1 md:grid-cols-4 lg:grid-cols-5 gap-6">
                                     {products.map(p => (
-                                        <div key={p.id} className="border p-4">
-                                            <img src={p.image} className="aspect-[3/4] object-cover mb-4" />
-                                            <p className="font-serif italic">{p.name}</p>
-                                            <button onClick={() => deleteProduct(p.id)} className="text-red-500 text-[10px] font-black mt-2">ELIMINAR</button>
+                                        <div key={p.id} className="border border-zinc-100 p-4 group bg-white">
+                                            <img src={p.image} className="aspect-[3/4] object-cover mb-4 w-full grayscale group-hover:grayscale-0 transition-all" />
+                                            <p className="font-serif italic text-sm truncate">{p.name}</p>
+                                            <div className="flex justify-between items-center mt-3">
+                                                <span className="text-xs font-bold">${p.price}</span>
+                                                <button onClick={() => deleteProduct(p.id)} className="text-red-400 hover:text-red-600 transition-colors">
+                                                    <i className="fa-solid fa-trash-can text-xs"></i>
+                                                </button>
+                                            </div>
                                         </div>
                                     ))}
                                 </div>
-                                <button onClick={() => {setIsAdmin(false); localStorage.removeItem('fridaAdmin'); setView('home')}} className="mt-10 opacity-50">Cerrar Sesión</button>
+                                <div className="mt-20 border-t pt-10 flex justify-center">
+                                    <button onClick={() => {setIsAdmin(false); localStorage.removeItem('fridaAdmin'); setView('home')}} className="text-[9px] uppercase tracking-[0.3em] opacity-30 hover:opacity-100">Cerrar Sesión</button>
+                                </div>
                             </div>
                         )}
 
                         {view === 'login' && (
-                            <div className="max-w-xs mx-auto py-32">
-                                <form onSubmit={(e) => { e.preventDefault(); if(loginPin === ADMIN_PIN){ setIsAdmin(true); localStorage.setItem('fridaAdmin','true'); setView('admin'); } else { alert("Error"); } }} className="space-y-6">
-                                    <input type="password" placeholder="PIN" className="input-line text-center" onChange={e=>setLoginPin(e.target.value)} />
-                                    <button className="btn-black w-full">Entrar</button>
+                            <div className="max-w-xs mx-auto py-32 text-center">
+                                <h2 className="text-3xl font-serif italic mb-8">Acceso Privado</h2>
+                                <form onSubmit={(e) => { 
+                                    e.preventDefault(); 
+                                    const pin = e.target.pin.value;
+                                    if(pin === ADMIN_PIN){ 
+                                        setIsAdmin(true); 
+                                        localStorage.setItem('fridaAdmin','true'); 
+                                        setView('admin'); 
+                                    } else { 
+                                        alert("PIN Incorrecto"); 
+                                    } 
+                                }} className="space-y-6">
+                                    <input name="pin" type="password" placeholder="INGRESE PIN" className="input-line text-center tracking-[0.5em]" required />
+                                    <button className="btn-black w-full">Verificar</button>
+                                    <button type="button" onClick={() => setView('home')} className="text-[9px] uppercase tracking-widest opacity-30">Volver</button>
                                 </form>
                             </div>
                         )}
                     </main>
 
+                    {/* Footer */}
+                    <footer className="py-20 border-t border-zinc-50 px-6 text-center">
+                        <h3 className="font-serif italic text-2xl mb-4">Frida Sofia</h3>
+                        <p className="text-[9px] uppercase tracking-[0.4em] opacity-30 mb-8">Handmade Boutique & Tejidos</p>
+                        <div className="flex justify-center gap-6 opacity-40 mb-12 text-sm">
+                            <i className="fa-brands fa-instagram"></i>
+                            <i className="fa-brands fa-facebook-f"></i>
+                            <i className="fa-brands fa-whatsapp"></i>
+                        </div>
+                        <p className="text-[8px] uppercase tracking-widest opacity-20">© 2024 Frida Sofia. Todos los derechos reservados.</p>
+                    </footer>
+
+                    {/* Modal Crear Producto */}
                     {showModal && (
-                        <div className="fixed inset-0 z-[100] bg-black/50 flex items-center justify-center p-6">
-                            <div className="bg-white p-10 max-w-lg w-full">
-                                <button onClick={()=>setShowModal(false)} className="float-right">X</button>
-                                <h3 className="text-2xl font-serif italic mb-6">Nuevo Producto</h3>
-                                <form onSubmit={saveProduct} className="space-y-4">
-                                    <input type="file" onChange={handleImageUpload} className="text-xs" required />
-                                    <input placeholder="Nombre" className="input-line" onChange={e=>setFormData({...formData, name: e.target.value})} required />
-                                    <input type="number" placeholder="Precio" className="input-line" onChange={e=>setFormData({...formData, price: e.target.value})} required />
-                                    <button className="btn-black w-full" disabled={isProcessing}>{isProcessing ? 'Guardando...' : 'Publicar'}</button>
+                        <div className="fixed inset-0 z-[300] bg-black/40 backdrop-blur-sm flex items-center justify-center p-4">
+                            <div className="bg-white p-8 md:p-12 max-w-lg w-full shadow-2xl animate-modal-in overflow-y-auto max-h-[90vh]">
+                                <div className="flex justify-between items-start mb-8">
+                                    <h3 className="text-3xl font-serif italic">Nueva Pieza</h3>
+                                    <button onClick={()=>setShowModal(false)} className="text-xl">&times;</button>
+                                </div>
+                                <form onSubmit={saveProduct} className="space-y-6">
+                                    <div className="border-2 border-dashed border-zinc-100 p-8 text-center relative group">
+                                        {formData.image ? (
+                                            <img src={formData.image} className="max-h-48 mx-auto" />
+                                        ) : (
+                                            <div className="text-[10px] uppercase tracking-widest opacity-40 py-10">Seleccionar Imagen</div>
+                                        )}
+                                        <input type="file" accept="image/*" onChange={handleImage} className="absolute inset-0 opacity-0 cursor-pointer" required={!formData.image} />
+                                    </div>
+                                    <input placeholder="NOMBRE DE LA PIEZA" className="input-line" onChange={e=>setFormData({...formData, name: e.target.value.toUpperCase()})} required />
+                                    <div className="grid grid-cols-2 gap-4">
+                                        <input type="number" placeholder="PRECIO $" className="input-line" onChange={e=>setFormData({...formData, price: e.target.value})} required />
+                                        <select className="input-line appearance-none" onChange={e=>setFormData({...formData, category: e.target.value})}>
+                                            {CATEGORIES.slice(1).map(c => <option key={c} value={c}>{c}</option>)}
+                                        </select>
+                                    </div>
+                                    <textarea placeholder="BREVE DESCRIPCIÓN (OPCIONAL)" className="input-line h-20 resize-none" onChange={e=>setFormData({...formData, description: e.target.value})}></textarea>
+                                    <button className="btn-black w-full" disabled={isProcessing}>
+                                        {isProcessing ? 'PUBLICANDO...' : 'PUBLICAR EN CATÁLOGO'}
+                                    </button>
                                 </form>
                             </div>
                         </div>
@@ -233,5 +400,7 @@
         const root = ReactDOM.createRoot(document.getElementById('root'));
         root.render(<App />);
     </script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
 </body>
 </html>
